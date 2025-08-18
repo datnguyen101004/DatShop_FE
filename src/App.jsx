@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { CartProvider } from './context/CartContext';
 import { AuthProvider } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import Home from './components/Home';
@@ -42,23 +41,21 @@ function App() {
 
   return (
     <AuthProvider>
-      <CartProvider>
-        <Router>
-          <div className="App">
-            <Navbar isVisible={isNavbarVisible} />
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/products" element={<Products />} />
-              <Route path="/special-offers" element={<Products />} />
-              <Route path="/product/:id" element={<ProductDetail />} />
-              <Route path="/create-product" element={<CreateProduct />} />
-              <Route path="/cart" element={<Cart />} />
-            </Routes>
-          </div>
-        </Router>
-      </CartProvider>
+      <Router>
+        <div className="App">
+          <Navbar isVisible={isNavbarVisible} />
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/products" element={<Products />} />
+            <Route path="/special-offers" element={<Products />} />
+            <Route path="/product/:id" element={<ProductDetail />} />
+            <Route path="/create-product" element={<CreateProduct />} />
+            <Route path="/cart" element={<Cart />} />
+          </Routes>
+        </div>
+      </Router>
     </AuthProvider>
   )
 }

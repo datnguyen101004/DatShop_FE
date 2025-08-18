@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import axios from 'axios';
 
 const Login = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { loginWithCredentials, defaultAccount } = useAuth();
+    const { loginWithCredentials, login, defaultAccount } = useAuth();
     const [formData, setFormData] = useState({
-        username: '',
+        email: '',
         password: '',
         rememberMe: false
     });
@@ -26,38 +27,131 @@ const Login = () => {
         if (error) setError('');
     };
 
+    // API login function
+    const loginWithAPI = async (email, password) => {
+        try {
+            const response = await axios.post('http://localhost:8080/api/v1/auth/login', {
+                email: email,
+                password: password
+            }, {
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+
+            // Check if response is successful based on status code
+            if (response.data.statusCode === 200 && response.data.message === 'SUCCESS') {
+                return {
+                    success: true,
+                    data: response.data.data // The actual user data with tokens
+                };
+            } else {
+                throw new Error(response.data.message || 'Đăng nhập không thành công');
+            }
+        } catch (error) {
+            console.error('API Login error:', error);
+
+            // Handle axios error response
+            if (error.response && error.response.data) {
+                return {
+                    success: false,
+                    message: error.response.data.message || 'Đã xảy ra lỗi khi đăng nhập'
+                };
+            }
+
+            return {
+                success: false,
+                message: error.message || 'Đã xảy ra lỗi khi đăng nhập'
+            };
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setIsLoading(true);
         setError('');
 
         try {
-            // Simulate loading time
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Try API login first
+            const apiResult = await loginWithAPI(formData.email, formData.password);
 
-            // Attempt login with credentials
-            const result = loginWithCredentials(formData.username, formData.password);
+            if (apiResult.success) {
+                console.log('API Login successful:', apiResult.data);
 
-            if (result.success) {
-                console.log('Login successful:', result.user);
-                alert('Đăng nhập thành công!');
+                const userData = apiResult.data;
+
+                // Store tokens and user info
+                if (formData.rememberMe) {
+                    // Store in localStorage for persistent login
+                    localStorage.setItem('accessToken', userData.accessToken);
+                    localStorage.setItem('refreshToken', userData.refreshToken);
+                    localStorage.setItem('user', JSON.stringify({
+                        userId: userData.userId,
+                        email: userData.email,
+                        name: userData.name,
+                        role: userData.role,
+                        active: userData.active,
+                        avatarUrl: userData.avatarUrl,
+                        token: userData.accessToken
+                    }));
+                } else {
+                    // Store in sessionStorage for session-only
+                    sessionStorage.setItem('accessToken', userData.accessToken);
+                    sessionStorage.setItem('refreshToken', userData.refreshToken);
+                    sessionStorage.setItem('user', JSON.stringify({
+                        userId: userData.userId,
+                        email: userData.email,
+                        name: userData.name,
+                        role: userData.role,
+                        active: userData.active,
+                        avatarUrl: userData.avatarUrl,
+                        token: userData.accessToken
+                    }));
+                }
+
+                // Update auth context with user data
+                login({
+                    userId: userData.userId,
+                    email: userData.email,
+                    name: userData.name,
+                    role: userData.role,
+                    active: userData.active,
+                    avatarUrl: userData.avatarUrl,
+                    token: userData.accessToken,
+                    loginTime: new Date().toISOString()
+                });
+
+                alert(`Đăng nhập thành công! Chào mừng ${userData.name}!`);
 
                 // Redirect to intended page or home
                 const from = location.state?.from?.pathname || '/';
                 navigate(from, { replace: true });
             } else {
-                setError(result.message);
+                // If API login fails, try fallback to local authentication
+                console.log('API login failed, trying local authentication...');
+
+                const result = loginWithCredentials(formData.email, formData.password);
+
+                if (result.success) {
+                    console.log('Local Login successful:', result.user);
+                    alert('Đăng nhập thành công (chế độ demo)!');
+
+                    const from = location.state?.from?.pathname || '/';
+                    navigate(from, { replace: true });
+                } else {
+                    setError(apiResult.message || result.message || 'Email hoặc mật khẩu không đúng');
+                }
             }
         } catch (error) {
             console.error('Login error:', error);
-            alert('Đăng nhập thất bại! Vui lòng thử lại.');
+            setError('Đã xảy ra lỗi không mong muốn. Vui lòng thử lại.');
         } finally {
             setIsLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 flex items-center justify-center p-4 pt-20">{/* Added pt-20 for navbar space */}
+        <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 flex items-center justify-center p-4">
             {/* Background decorations */}
             <div className="absolute inset-0 overflow-hidden">
                 <div className="absolute top-10 left-10 w-20 h-20 bg-white/10 rounded-full blur-xl animate-pulse"></div>
@@ -81,8 +175,9 @@ const Login = () => {
                         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
                             <div className="text-sm text-blue-800">
                                 <p className="font-semibold mb-1">🎯 Tài khoản demo:</p>
-                                <p>Tên đăng nhập: <span className="font-mono bg-blue-100 px-2 py-1 rounded">dat</span></p>
+                                <p>Email: <span className="font-mono bg-blue-100 px-2 py-1 rounded">dat@gmail.com</span></p>
                                 <p>Mật khẩu: <span className="font-mono bg-blue-100 px-2 py-1 rounded">dat</span></p>
+                                <p className="text-xs mt-1 text-blue-600">💡 Hệ thống sẽ tự động thử API trước, sau đó fallback về demo</p>
                             </div>
                         </div>
 
@@ -93,19 +188,19 @@ const Login = () => {
                             </div>
                         )}
 
-                        {/* Username Field */}
+                        {/* Email Field */}
                         <div>
-                            <label htmlFor="username" className="block text-sm font-semibold text-gray-700 mb-2">
-                                🔒 Tên đăng nhập
+                            <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
+                                📧 Email
                             </label>
                             <input
-                                type="text"
-                                id="username"
-                                name="username"
-                                value={formData.username}
+                                type="email"
+                                id="email"
+                                name="email"
+                                value={formData.email}
                                 onChange={handleChange}
                                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 text-gray-800 bg-white"
-                                placeholder="Nhập tên đăng nhập"
+                                placeholder="Nhập địa chỉ email"
                                 required
                             />
                         </div>
@@ -196,7 +291,7 @@ const Login = () => {
                     <div className="mt-8 text-center">
                         <p className="text-gray-600">
                             Chưa có tài khoản?{' '}
-                            <a href="#" className="text-blue-600 hover:text-blue-800 font-semibold transition-colors">
+                            <a href="/register" className="text-blue-600 hover:text-blue-800 font-semibold transition-colors">
                                 Đăng ký ngay
                             </a>
                         </p>

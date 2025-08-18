@@ -1,323 +1,76 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import axios from 'axios';
 
 const Products = () => {
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [sortBy, setSortBy] = useState('default');
+    const [allProducts, setAllProducts] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const { isAuthenticated, user } = useAuth();
 
-    // Danh sách categories
-    const categories = [
-        { id: 'all', name: 'Tất cả', count: 24 },
-        { id: 'electronics', name: 'Điện tử', count: 8 },
-        { id: 'fashion', name: 'Thời trang', count: 6 },
-        { id: 'home', name: 'Nhà cửa', count: 5 },
-        { id: 'books', name: 'Sách', count: 3 },
-        { id: 'sports', name: 'Thể thao', count: 2 },
-    ];
+    // Danh sách categories - sẽ được cập nhật dựa trên data từ API
+    const getUniqueCategories = (products) => {
+        const uniqueCats = [...new Set(products.map(p => p.category).filter(Boolean))];
+        return [
+            { id: 'all', name: 'Tất cả', count: products.length },
+            ...uniqueCats.map(cat => ({
+                id: cat,
+                name: cat.charAt(0).toUpperCase() + cat.slice(1), // Capitalize first letter
+                count: products.filter(p => p.category === cat).length
+            }))
+        ];
+    };
 
-    // Danh sách sản phẩm mở rộng
-    const allProducts = [
-        // Điện tử
-        {
-            id: 1,
-            name: 'iPhone 15 Pro Max',
-            price: '29.990.000',
-            originalPrice: '32.990.000',
-            image: '📱',
-            rating: 4.8,
-            reviews: 1234,
-            discount: 9,
-            badge: 'Hot',
-            category: 'electronics'
-        },
-        {
-            id: 2,
-            name: 'MacBook Air M3',
-            price: '28.999.000',
-            originalPrice: '31.999.000',
-            image: '💻',
-            rating: 4.9,
-            reviews: 856,
-            discount: 9,
-            badge: 'New',
-            category: 'electronics'
-        },
-        {
-            id: 3,
-            name: 'AirPods Pro 2',
-            price: '5.999.000',
-            originalPrice: '6.999.000',
-            image: '🎧',
-            rating: 4.7,
-            reviews: 2341,
-            discount: 14,
-            badge: 'Sale',
-            category: 'electronics'
-        },
-        {
-            id: 4,
-            name: 'iPad Pro 12.9"',
-            price: '25.999.000',
-            originalPrice: '28.999.000',
-            image: '📱',
-            rating: 4.6,
-            reviews: 987,
-            discount: 10,
-            badge: 'New',
-            category: 'electronics'
-        },
-        {
-            id: 5,
-            name: 'Samsung Galaxy S24 Ultra',
-            price: '27.990.000',
-            originalPrice: '30.990.000',
-            image: '📱',
-            rating: 4.5,
-            reviews: 1456,
-            discount: 10,
-            badge: 'Hot',
-            category: 'electronics'
-        },
-        {
-            id: 6,
-            name: 'Apple Watch Series 9',
-            price: '8.999.000',
-            originalPrice: '9.999.000',
-            image: '⌚',
-            rating: 4.7,
-            reviews: 789,
-            discount: 10,
-            badge: 'Sale',
-            category: 'electronics'
-        },
-        {
-            id: 7,
-            name: 'Sony WH-1000XM5',
-            price: '7.999.000',
-            originalPrice: '8.999.000',
-            image: '🎧',
-            rating: 4.8,
-            reviews: 654,
-            discount: 11,
-            badge: 'Hot',
-            category: 'electronics'
-        },
-        {
-            id: 8,
-            name: 'Nintendo Switch OLED',
-            price: '8.490.000',
-            originalPrice: '9.490.000',
-            image: '🎮',
-            rating: 4.6,
-            reviews: 1123,
-            discount: 11,
-            badge: 'New',
-            category: 'electronics'
-        },
+    // Fetch products from API
+    useEffect(() => {
+        const fetchProducts = async () => {
+            try {
+                setLoading(true);
 
-        // Thời trang
-        {
-            id: 9,
-            name: 'Áo Polo Nam Classic',
-            price: '299.000',
-            originalPrice: '399.000',
-            image: '👕',
-            rating: 4.5,
-            reviews: 234,
-            discount: 25,
-            badge: 'Sale',
-            category: 'fashion'
-        },
-        {
-            id: 10,
-            name: 'Giày Sneaker Unisex',
-            price: '1.299.000',
-            originalPrice: '1.599.000',
-            image: '👟',
-            rating: 4.4,
-            reviews: 567,
-            discount: 19,
-            badge: 'Hot',
-            category: 'fashion'
-        },
-        {
-            id: 11,
-            name: 'Túi Xách Nữ Cao Cấp',
-            price: '899.000',
-            originalPrice: '1.199.000',
-            image: '👜',
-            rating: 4.6,
-            reviews: 345,
-            discount: 25,
-            badge: 'New',
-            category: 'fashion'
-        },
-        {
-            id: 12,
-            name: 'Đồng Hồ Nam Thời Trang',
-            price: '2.499.000',
-            originalPrice: '2.999.000',
-            image: '⌚',
-            rating: 4.7,
-            reviews: 198,
-            discount: 17,
-            badge: 'Hot',
-            category: 'fashion'
-        },
-        {
-            id: 13,
-            name: 'Áo Khoác Bomber',
-            price: '599.000',
-            originalPrice: '799.000',
-            image: '🧥',
-            rating: 4.3,
-            reviews: 456,
-            discount: 25,
-            badge: 'Sale',
-            category: 'fashion'
-        },
-        {
-            id: 14,
-            name: 'Quần Jeans Slim Fit',
-            price: '699.000',
-            originalPrice: '899.000',
-            image: '👖',
-            rating: 4.5,
-            reviews: 789,
-            discount: 22,
-            badge: 'New',
-            category: 'fashion'
-        },
+                // Get token from localStorage or sessionStorage
+                const token = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken');
 
-        // Nhà cửa
-        {
-            id: 15,
-            name: 'Bàn Làm Việc Gỗ Cao Su',
-            price: '2.999.000',
-            originalPrice: '3.999.000',
-            image: '🪑',
-            rating: 4.6,
-            reviews: 234,
-            discount: 25,
-            badge: 'New',
-            category: 'home'
-        },
-        {
-            id: 16,
-            name: 'Ghế Ergonomic Premium',
-            price: '4.999.000',
-            originalPrice: '5.999.000',
-            image: '🪑',
-            rating: 4.8,
-            reviews: 345,
-            discount: 17,
-            badge: 'Hot',
-            category: 'home'
-        },
-        {
-            id: 17,
-            name: 'Đèn LED Thông Minh',
-            price: '799.000',
-            originalPrice: '999.000',
-            image: '💡',
-            rating: 4.4,
-            reviews: 567,
-            discount: 20,
-            badge: 'Sale',
-            category: 'home'
-        },
-        {
-            id: 18,
-            name: 'Máy Lọc Không Khí',
-            price: '3.499.000',
-            originalPrice: '3.999.000',
-            image: '🌬️',
-            rating: 4.7,
-            reviews: 198,
-            discount: 13,
-            badge: 'New',
-            category: 'home'
-        },
-        {
-            id: 19,
-            name: 'Robot Hút Bụi Thông Minh',
-            price: '5.999.000',
-            originalPrice: '7.999.000',
-            image: '🤖',
-            rating: 4.5,
-            reviews: 234,
-            discount: 25,
-            badge: 'Hot',
-            category: 'home'
-        },
+                const response = await axios.get('http://localhost:8080/api/v1/user/product/all', {
+                    headers: {
+                        ...(token && { 'Authorization': `Bearer ${token}` })
+                    }
+                });
 
-        // Sách
-        {
-            id: 20,
-            name: 'Sách Lập Trình Python',
-            price: '299.000',
-            originalPrice: '399.000',
-            image: '📚',
-            rating: 4.8,
-            reviews: 456,
-            discount: 25,
-            badge: 'New',
-            category: 'books'
-        },
-        {
-            id: 21,
-            name: 'Sách Kinh Tế Vĩ Mô',
-            price: '199.000',
-            originalPrice: '259.000',
-            image: '📖',
-            rating: 4.6,
-            reviews: 234,
-            discount: 23,
-            badge: 'Sale',
-            category: 'books'
-        },
-        {
-            id: 22,
-            name: 'Combo Sách Kỹ Năng Sống',
-            price: '399.000',
-            originalPrice: '599.000',
-            image: '📚',
-            rating: 4.7,
-            reviews: 345,
-            discount: 33,
-            badge: 'Hot',
-            category: 'books'
-        },
+                // Handle response based on API format
+                if (response.data.statusCode === 200 && response.data.message === 'SUCCESS') {
+                    setAllProducts(response.data.data || []);
+                    setError(null);
+                } else {
+                    throw new Error(response.data.message || 'Không thể tải danh sách sản phẩm');
+                }
+            } catch (err) {
+                console.error('Error fetching products:', err);
 
-        // Thể thao
-        {
-            id: 23,
-            name: 'Bóng Đá FIFA World Cup',
-            price: '899.000',
-            originalPrice: '1.199.000',
-            image: '⚽',
-            rating: 4.5,
-            reviews: 567,
-            discount: 25,
-            badge: 'New',
-            category: 'sports'
-        },
-        {
-            id: 24,
-            name: 'Gậy Golf Titanium Pro',
-            price: '12.999.000',
-            originalPrice: '15.999.000',
-            image: '🏌️',
-            rating: 4.8,
-            reviews: 123,
-            discount: 19,
-            badge: 'Hot',
-            category: 'sports'
-        }
-    ];
+                // Handle different types of errors
+                if (err.response) {
+                    if (err.response.status === 401) {
+                        setError('Vui lòng đăng nhập để xem sản phẩm.');
+                    } else if (err.response.status === 403) {
+                        setError('Bạn không có quyền truy cập danh sách sản phẩm.');
+                    } else {
+                        setError(err.response.data?.message || 'Không thể tải danh sách sản phẩm. Vui lòng thử lại sau.');
+                    }
+                } else {
+                    setError('Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.');
+                }
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchProducts();
+    }, []);
+
+    // Update category counts based on fetched products
+    const availableCategories = getUniqueCategories(allProducts);
 
     // Filter products based on selected category
     const filteredProducts = selectedCategory === 'all'
@@ -328,26 +81,73 @@ const Products = () => {
     const sortedProducts = [...filteredProducts].sort((a, b) => {
         switch (sortBy) {
             case 'price-low':
-                return parseFloat(a.price.replace(/\./g, '')) - parseFloat(b.price.replace(/\./g, ''));
+                return parseFloat(a.price?.toString().replace(/\./g, '') || '0') - parseFloat(b.price?.toString().replace(/\./g, '') || '0');
             case 'price-high':
-                return parseFloat(b.price.replace(/\./g, '')) - parseFloat(a.price.replace(/\./g, ''));
+                return parseFloat(b.price?.toString().replace(/\./g, '') || '0') - parseFloat(a.price?.toString().replace(/\./g, '') || '0');
             case 'rating':
-                return b.rating - a.rating;
+                return (b.rating || 0) - (a.rating || 0);
             case 'name':
-                return a.name.localeCompare(b.name);
+                return (a.name || '').localeCompare(b.name || '');
             default:
                 return 0;
         }
     });
 
     const formatPrice = (price) => {
+        if (!price) return '0';
         if (typeof price === 'string') {
             return parseFloat(price.replace(/\./g, '')).toLocaleString('vi-VN');
         }
         return price.toLocaleString('vi-VN');
     };
+
+    // Loading state
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-gray-50 pt-20">
+                <div className="container mx-auto px-4 py-8">
+                    <div className="flex justify-center items-center h-64">
+                        <div className="text-center">
+                            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-purple-600 mx-auto mb-4"></div>
+                            <p className="text-xl text-gray-600">Đang tải sản phẩm...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // Error state
+    if (error) {
+        return (
+            <div className="min-h-screen bg-gray-50 pt-20">
+                <div className="container mx-auto px-4 py-8">
+                    <div className="text-center py-16">
+                        <div className="text-6xl mb-4">❌</div>
+                        <h3 className="text-2xl font-bold text-gray-800 mb-2">Có lỗi xảy ra</h3>
+                        <p className="text-gray-600 mb-6">{error}</p>
+                        <button
+                            onClick={() => window.location.reload()}
+                            className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-6 py-3 rounded-xl font-bold transition-all duration-300 transform hover:scale-105 mr-4"
+                        >
+                            Thử lại
+                        </button>
+                        {error.includes('đăng nhập') && (
+                            <Link
+                                to="/login"
+                                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-bold transition-all duration-300 transform hover:scale-105"
+                            >
+                                Đăng nhập
+                            </Link>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
-        <div className="min-h-screen bg-gray-50 pt-20">{/* Added pt-20 for navbar space */}
+        <div className="min-h-screen bg-gray-50 pt-20">
             {/* Breadcrumb */}
             <div className="bg-white border-b">
                 <div className="container mx-auto px-4 py-3">
@@ -388,7 +188,7 @@ const Products = () => {
                         <div className="bg-white rounded-xl shadow-lg p-6">
                             <h3 className="text-lg font-bold text-gray-800 mb-4">Danh mục</h3>
                             <div className="space-y-2">
-                                {categories.map((category) => (
+                                {availableCategories.map((category) => (
                                     <button
                                         key={category.id}
                                         onClick={() => setSelectedCategory(category.id)}
@@ -402,7 +202,7 @@ const Products = () => {
                                             ? 'bg-white/20 text-white'
                                             : 'bg-gray-200 text-gray-600'
                                             }`}>
-                                            {category.id === 'all' ? allProducts.length : category.count}
+                                            {category.count}
                                         </span>
                                     </button>
                                 ))}
@@ -462,48 +262,62 @@ const Products = () => {
                                     )}
 
                                     {/* Product Image */}
-                                    <div className="relative h-48 bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center text-6xl group-hover:scale-105 transition-transform duration-300">
-                                        {product.image}
+                                    <div className="relative h-48 bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center group-hover:scale-105 transition-transform duration-300 overflow-hidden">
+                                        {product.imageUrl ? (
+                                            <img
+                                                src={product.imageUrl}
+                                                alt={product.name}
+                                                className="w-full h-full object-cover"
+                                                onError={(e) => {
+                                                    e.target.style.display = 'none';
+                                                    e.target.nextSibling.style.display = 'flex';
+                                                }}
+                                            />
+                                        ) : null}
+                                        <div className="w-full h-full flex items-center justify-center text-6xl" style={{ display: product.imageUrl ? 'none' : 'flex' }}>
+                                            📦
+                                        </div>
                                     </div>
 
                                     {/* Product Info */}
                                     <div className="p-6">
                                         <h3 className="text-lg font-bold text-gray-800 mb-2 group-hover:text-blue-600 transition-colors line-clamp-2">
-                                            {product.name}
+                                            {product.name || 'Tên sản phẩm'}
                                         </h3>
 
-                                        {/* Rating */}
-                                        <div className="flex items-center gap-2 mb-3">
-                                            <div className="flex text-yellow-400">
-                                                {[...Array(5)].map((_, i) => (
-                                                    <span key={i} className={i < Math.floor(product.rating) ? 'text-yellow-400' : 'text-gray-300'}>
-                                                        ⭐
-                                                    </span>
-                                                ))}
-                                            </div>
-                                            <span className="text-sm text-gray-600">
-                                                {product.rating} ({product.reviews} đánh giá)
+                                        {/* Category & Stock */}
+                                        <div className="flex items-center justify-between mb-3">
+                                            <span className="text-sm bg-blue-100 text-blue-600 px-2 py-1 rounded-full">
+                                                {product.category || 'Khác'}
+                                            </span>
+                                            <span className={`text-sm px-2 py-1 rounded-full ${product.stockQuantity > 0 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                                                {product.stockQuantity > 0 ? `Còn ${product.stockQuantity}` : 'Hết hàng'}
                                             </span>
                                         </div>
+
+                                        {/* Description */}
+                                        {product.description && (
+                                            <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                                                {product.description}
+                                            </p>
+                                        )}
 
                                         {/* Price */}
                                         <div className="flex items-center gap-2 mb-4">
                                             <span className="text-2xl font-bold text-red-600">
                                                 {formatPrice(product.price)}₫
                                             </span>
-                                            {product.originalPrice && (
-                                                <span className="text-lg text-gray-400 line-through">
-                                                    {formatPrice(product.originalPrice)}₫
-                                                </span>
-                                            )}
                                         </div>
 
                                         {/* Action Button */}
                                         <Link
                                             to={`/product/${product.id}`}
-                                            className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-3 rounded-xl font-bold transition-all duration-300 transform group-hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-500/50 inline-block text-center"
+                                            className={`w-full py-3 rounded-xl font-bold transition-all duration-300 transform group-hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-500/50 inline-block text-center ${product.stockQuantity > 0
+                                                ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white'
+                                                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                                }`}
                                         >
-                                            🛍️ Xem chi tiết
+                                            {product.stockQuantity > 0 ? '🛍️ Xem chi tiết' : '❌ Hết hàng'}
                                         </Link>
                                     </div>
                                 </div>
@@ -511,7 +325,7 @@ const Products = () => {
                         </div>
 
                         {/* Empty State */}
-                        {sortedProducts.length === 0 && (
+                        {sortedProducts.length === 0 && !loading && (
                             <div className="text-center py-16">
                                 <div className="text-6xl mb-4">🔍</div>
                                 <h3 className="text-2xl font-bold text-gray-800 mb-2">Không tìm thấy sản phẩm</h3>

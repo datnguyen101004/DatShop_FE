@@ -1,14 +1,41 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import axios from 'axios';
 
 const Navbar = ({ isVisible = true }) => {
     const navigate = useNavigate();
-    const { items } = useCart();
     const { isAuthenticated, logout, user } = useAuth();
+    const [totalItems, setTotalItems] = useState(0);
 
-    const totalItems = items.reduce((total, item) => total + item.quantity, 0);
+    // Fetch cart items count
+    const fetchCartItemsCount = async () => {
+        try {
+            if (!isAuthenticated()) return;
+
+            const token = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken');
+            if (!token) return;
+
+            const response = await axios.get('http://localhost:8080/api/v1/user/cart/', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.data.statusCode === 200 && response.data.message === 'SUCCESS') {
+                const cartItems = response.data.data || [];
+                const total = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+                setTotalItems(total);
+            }
+        } catch (error) {
+            console.error('Error fetching cart items count:', error);
+            setTotalItems(0);
+        }
+    };
+
+    useEffect(() => {
+        fetchCartItemsCount();
+    }, [isAuthenticated]);
 
     const handleLogout = () => {
         logout();
