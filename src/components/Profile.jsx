@@ -9,6 +9,14 @@ const Profile = () => {
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+    const [showChatbotPopup, setShowChatbotPopup] = useState(false);
+    const [chatbotData, setChatbotData] = useState({
+        name: '',
+        description: '',
+        type: 'PRODUCT'
+    });
+    const [isUpdating, setIsUpdating] = useState(false);
 
     // Fetch user profile from API
     const fetchProfile = async () => {
@@ -78,6 +86,55 @@ const Profile = () => {
                 return { text: 'Người dùng', color: 'bg-blue-100 text-blue-800', icon: '👤' };
             default:
                 return { text: role || 'Không xác định', color: 'bg-gray-100 text-gray-800', icon: '❓' };
+        }
+    };
+
+    // Update chatbot data
+    const updateChatbotData = async () => {
+        if (!chatbotData.name.trim() || !chatbotData.description.trim()) {
+            setError('Vui lòng điền đầy đủ thông tin.');
+            return;
+        }
+
+        try {
+            setIsUpdating(true);
+            const token = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken');
+
+            if (!token) {
+                setError('Vui lòng đăng nhập để thực hiện chức năng này.');
+                return;
+            }
+
+            const requestBody = {
+                description: chatbotData.description.trim(),
+                type: chatbotData.type,
+                name: chatbotData.name.trim()
+            };
+
+            await axios.post('http://localhost:8080/api/v1/information/create', requestBody, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            // Đóng popup và reset form
+            setShowChatbotPopup(false);
+            setChatbotData({
+                name: '',
+                description: '',
+                type: 'PRODUCT'
+            });
+
+            // Hiển thị thông báo thành công
+            setShowSuccessMessage(true);
+            setTimeout(() => setShowSuccessMessage(false), 3000);
+
+        } catch (err) {
+            console.error('Error updating chatbot data:', err);
+            setError('Không thể cập nhật dữ liệu chatbot. Vui lòng thử lại.');
+        } finally {
+            setIsUpdating(false);
         }
     };
 
@@ -201,6 +258,12 @@ const Profile = () => {
                                     >
                                         🔄 Làm mới
                                     </button>
+                                    <button
+                                        onClick={() => setShowChatbotPopup(true)}
+                                        className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white px-6 py-3 rounded-xl font-bold transition-all duration-300 transform hover:scale-105 flex items-center gap-2"
+                                    >
+                                        🤖 Cập nhật Chatbot
+                                    </button>
                                     <Link
                                         to="/order-history"
                                         className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-6 py-3 rounded-xl font-bold transition-all duration-300 transform hover:scale-105 flex items-center gap-2"
@@ -255,6 +318,125 @@ const Profile = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Chatbot Update Popup */}
+            {showChatbotPopup && (
+                <div
+                    className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) {
+                            setShowChatbotPopup(false);
+                        }
+                    }}
+                >
+                    <div className="bg-white rounded-2xl p-6 w-full max-w-md mx-auto shadow-2xl">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                                🤖 Cập nhật dữ liệu Chatbot
+                            </h3>
+                            <button
+                                onClick={() => setShowChatbotPopup(false)}
+                                className="text-gray-400 hover:text-gray-600 transition-colors"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <form onSubmit={(e) => { e.preventDefault(); updateChatbotData(); }}>
+                            {/* Name Field */}
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Tên sản phẩm/dịch vụ <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    value={chatbotData.name}
+                                    onChange={(e) => setChatbotData({ ...chatbotData, name: e.target.value })}
+                                    placeholder="Nhập tên sản phẩm..."
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                                    required
+                                />
+                            </div>
+
+                            {/* Description Field */}
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Mô tả <span className="text-red-500">*</span>
+                                </label>
+                                <textarea
+                                    value={chatbotData.description}
+                                    onChange={(e) => setChatbotData({ ...chatbotData, description: e.target.value })}
+                                    placeholder="Nhập mô tả chi tiết..."
+                                    rows="3"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"
+                                    required
+                                />
+                            </div>
+
+                            {/* Type Field */}
+                            <div className="mb-6">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Loại thông tin
+                                </label>
+                                <select
+                                    value={chatbotData.type}
+                                    onChange={(e) => setChatbotData({ ...chatbotData, type: e.target.value })}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                                >
+                                    <option value="PRODUCT">Sản phẩm</option>
+                                    <option value="SERVICE">Dịch vụ</option>
+                                    <option value="INFO">Thông tin</option>
+                                </select>
+                            </div>
+
+                            {/* Buttons */}
+                            <div className="flex gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowChatbotPopup(false)}
+                                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                                    disabled={isUpdating}
+                                >
+                                    Hủy
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isUpdating || !chatbotData.name.trim() || !chatbotData.description.trim()}
+                                    className="flex-1 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white px-4 py-2 rounded-lg font-medium transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                >
+                                    {isUpdating ? (
+                                        <>
+                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                            Đang cập nhật...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                            </svg>
+                                            Cập nhật
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Success Popup */}
+            {showSuccessMessage && (
+                <div className="fixed top-4 right-4 z-50">
+                    <div className="bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-3 animate-bounce">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="font-medium">Cập nhật dữ liệu chatbot thành công!</span>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

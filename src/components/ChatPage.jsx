@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import axios from "axios";
 import SockJS from "sockjs-client";
 import { Client } from "@stomp/stompjs";
 
 const ChatPage = () => {
     const navigate = useNavigate();
+    const { conversationId: urlConversationId } = useParams(); // Get conversationId from URL
     const { user, isAuthenticated } = useAuth();
 
     const [chatRooms, setChatRooms] = useState([]); // Danh sách chat rooms
@@ -44,30 +45,49 @@ const ChatPage = () => {
         }
     }, [isAuthenticated, navigate]);
 
+    // Function để fetch danh sách chat rooms
+    const fetchChatRooms = async () => {
+        try {
+            const response = await axios.get("http://localhost:8080/api/v1/chat/rooms/all", {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            if (response.data.statusCode === 200) {
+                setChatRooms(response.data.data);
+            } else {
+                setRoomError(response.data.message || "Lỗi khi tải danh sách chat rooms.");
+            }
+        } catch (err) {
+            setRoomError("Lỗi mạng hoặc server không khả dụng.");
+            console.error("Error fetching chat rooms:", err);
+        }
+    };
+
     // Fetch danh sách chat rooms
     useEffect(() => {
-        const fetchChatRooms = async () => {
-            try {
-                const response = await axios.get("http://localhost:8080/api/v1/chat/rooms/all", {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                });
-                if (response.data.statusCode === 200) {
-                    setChatRooms(response.data.data);
-                } else {
-                    setRoomError(response.data.message || "Lỗi khi tải danh sách chat rooms.");
-                }
-            } catch (err) {
-                setRoomError("Lỗi mạng hoặc server không khả dụng.");
-                console.error("Error fetching chat rooms:", err);
-            }
-        };
-
         if (token) {
             fetchChatRooms();
         }
     }, [token]);
+
+    // Auto-select room từ URL params
+    useEffect(() => {
+        if (urlConversationId && chatRooms.length > 0 && !selectedRoom) {
+            const targetRoom = chatRooms.find(room => room.conversationId === urlConversationId);
+            if (targetRoom) {
+                console.log('Auto-selecting room from URL:', urlConversationId);
+                handleRoomClick(targetRoom);
+            } else {
+                console.log('Room not found in user rooms:', urlConversationId);
+                // Room không tồn tại trong danh sách của user
+                // Có thể do room vừa được tạo, thử load lại danh sách
+                setTimeout(() => {
+                    fetchChatRooms();
+                }, 1000);
+            }
+        }
+    }, [urlConversationId, chatRooms, selectedRoom]);
 
     // Get other user ID from room
     const getOtherUserId = (room) => {

@@ -15,6 +15,7 @@ import PaymentCallback from './components/PaymentCallback';
 import Profile from './components/Profile';
 import UserProfile from './components/UserProfile';
 import ChatPage from './components/ChatPage';
+import Chatbot from './components/Chatbot';
 
 import './App.css'
 
@@ -67,6 +68,9 @@ function App() {
             <Route path="/profile/:userId" element={<UserProfile />} />
             <Route path="/chat/:conversationId?" element={<ChatPage />} />
           </Routes>
+
+          {/* Chatbot Popup */}
+          <Chatbot />
         </div>
       </Router>
     </AuthProvider>
