@@ -5,17 +5,21 @@ import axios from 'axios';
 
 const CreateProduct = () => {
     const navigate = useNavigate();
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, user } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
 
-    // Redirect if not authenticated
+    // Redirect if not authenticated or not admin
     useEffect(() => {
         if (!isAuthenticated()) {
             navigate('/login', {
                 state: { from: { pathname: '/create-product' } }
             });
+        } else if (user?.role !== 'admin') {
+            // Redirect non-admin users to home page
+            navigate('/', { replace: true });
+            alert('Bạn không có quyền truy cập trang này!');
         }
-    }, [isAuthenticated, navigate]);
+    }, [isAuthenticated, user, navigate]);
 
     const [formData, setFormData] = useState({
         name: '',

@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 
 const Home = () => {
     const [email, setEmail] = useState('');
+    const location = useLocation();
+    const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
 
     // Sample data - trong thực tế sẽ lấy từ API
     const categories = [
@@ -90,8 +92,53 @@ const Home = () => {
         setEmail('');
     };
 
+    // Check for payment success state
+    useEffect(() => {
+        if (location.state?.paymentSuccess) {
+            setShowPaymentSuccess(true);
+
+            // Auto hide success message after 5 seconds
+            const timer = setTimeout(() => {
+                setShowPaymentSuccess(false);
+            }, 5000);
+
+            return () => clearTimeout(timer);
+        }
+    }, [location.state]);
+
+    // Format price
+    const formatPrice = (price) => {
+        return price.toLocaleString('vi-VN');
+    };
+
     return (
         <div className="min-h-screen">
+            {/* Payment Success Notification */}
+            {showPaymentSuccess && (
+                <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 max-w-md w-full mx-4">
+                    <div className="bg-green-100 border border-green-400 text-green-700 px-6 py-4 rounded-xl shadow-lg">
+                        <div className="flex items-center">
+                            <div className="text-2xl mr-3">✅</div>
+                            <div className="flex-1">
+                                <h3 className="font-bold">Thanh toán thành công!</h3>
+                                {location.state?.orderId && (
+                                    <p className="text-sm">Đơn hàng #{location.state.orderId}</p>
+                                )}
+                                {location.state?.amount && (
+                                    <p className="text-sm">Số tiền: {formatPrice(location.state.amount)} VNĐ</p>
+                                )}
+                            </div>
+                            <button
+                                onClick={() => setShowPaymentSuccess(false)}
+                                className="ml-3 text-green-700 hover:text-green-900"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Hero Section - Full Screen */}
             <section className="relative min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 text-white overflow-hidden flex items-center pt-20">{/* Added pt-20 for navbar space */}
                 {/* Background decorations */}

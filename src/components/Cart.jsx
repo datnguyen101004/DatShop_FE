@@ -1,18 +1,86 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 
 const Cart = () => {
     const navigate = useNavigate();
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, user } = useAuth();
     const [cartItems, setCartItems] = useState([]);
     const [products, setProducts] = useState({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [pendingUpdates, setPendingUpdates] = useState({}); // Track pending quantity updates
+    const debounceRef = useRef({});
+
+    // Get localStorage key for user's cart - only for authenticated users
+    const getCartStorageKey = () => {
+        if (!user?.userId) return null; // Don't create cart_guest key
+        return `cart_${user.userId}`;
+    };
+
+    // Save cart to localStorage - only for authenticated users
+    const saveCartToLocalStorage = useCallback((items, shouldDispatchEvent = true) => {
+        try {
+            const cartKey = getCartStorageKey();
+            if (!cartKey) return; // Don't save if user is not authenticated
+
+            localStorage.setItem(cartKey, JSON.stringify(items));
+            // Only dispatch custom event if explicitly requested (avoid infinite loops)
+            if (shouldDispatchEvent) {
+                window.dispatchEvent(new CustomEvent('cartUpdated'));
+            }
+        } catch (error) {
+            console.error('Error saving cart to localStorage:', error);
+        }
+    }, [user]);
+
+    // Load cart from localStorage - only for authenticated users
+    const loadCartFromLocalStorage = useCallback(() => {
+        try {
+            const cartKey = getCartStorageKey();
+            if (!cartKey) return []; // Return empty array if user is not authenticated
+
+            const savedCart = localStorage.getItem(cartKey);
+            return savedCart ? JSON.parse(savedCart) : [];
+        } catch (error) {
+            console.error('Error loading cart from localStorage:', error);
+            return [];
+        }
+    }, [user]);
+
+    // Clean up cart_guest key if it exists
+    useEffect(() => {
+        const guestCartKey = 'cart_guest';
+        if (localStorage.getItem(guestCartKey)) {
+            console.log('Removing cart_guest key from localStorage');
+            localStorage.removeItem(guestCartKey);
+        }
+    }, []); // Run only once on component mount
+
+    // Merge server cart with local cart
+    const mergeCartData = useCallback((serverItems, localItems) => {
+        const merged = [...serverItems];
+
+        // Add or update quantities from local storage
+        localItems.forEach(localItem => {
+            const serverItemIndex = merged.findIndex(item => item.productId === localItem.productId);
+            if (serverItemIndex >= 0) {
+                // Update quantity if local is different
+                if (merged[serverItemIndex].quantity !== localItem.quantity) {
+                    merged[serverItemIndex].quantity = localItem.quantity;
+                }
+            } else {
+                // Add new item from local storage
+                merged.push(localItem);
+            }
+        });
+
+        return merged;
+    }, []);
 
     // Fetch cart items from API
-    const fetchCartItems = async () => {
+    const fetchCartItems = useCallback(async () => {
         try {
             setLoading(true);
             const token = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken');
@@ -30,11 +98,19 @@ const Cart = () => {
             });
 
             if (response.data.statusCode === 200 && response.data.message === 'SUCCESS') {
-                const cartData = response.data.data || [];
-                setCartItems(cartData);
+                const serverCartData = response.data.data || [];
+                const localCartData = loadCartFromLocalStorage();
+
+                // Merge server and local data
+                const mergedCartData = mergeCartData(serverCartData, localCartData);
+
+                setCartItems(mergedCartData);
+
+                // Update localStorage with merged data (without dispatching event to avoid loop)
+                saveCartToLocalStorage(mergedCartData, false);
 
                 // Fetch product details for each cart item
-                await fetchProductDetails(cartData);
+                await fetchProductDetails(mergedCartData);
                 setError(null);
             } else {
                 throw new Error(response.data.message || 'Không thể tải giỏ hàng');
@@ -47,14 +123,20 @@ const Cart = () => {
             } else if (err.response?.status === 403) {
                 setError('Bạn không có quyền truy cập giỏ hàng này.');
             } else {
-                setError(err.response?.data?.message || 'Không thể tải giỏ hàng. Vui lòng thử lại.');
+                // Load from localStorage if API fails
+                const localCartData = loadCartFromLocalStorage();
+                if (localCartData.length > 0) {
+                    setCartItems(localCartData);
+                    await fetchProductDetails(localCartData);
+                    setError('Đang hiển thị giỏ hàng offline. Một số thay đổi có thể chưa được đồng bộ.');
+                } else {
+                    setError(err.response?.data?.message || 'Không thể tải giỏ hàng. Vui lòng thử lại.');
+                }
             }
         } finally {
             setLoading(false);
         }
-    };
-
-    // Fetch product details for cart items
+    }, []); // Remove unnecessary dependencies to prevent infinite re-renders    // Fetch product details for cart items
     const fetchProductDetails = async (cartData) => {
         try {
             const token = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken');
@@ -96,8 +178,42 @@ const Cart = () => {
             return;
         }
 
+        // Initial fetch
         fetchCartItems();
-    }, [isAuthenticated, navigate]);
+    }, []); // Removed fetchCartItems from dependencies
+
+    // Separate useEffect for event listener to avoid re-running fetchCartItems
+    useEffect(() => {
+        // Add event listener for cart updates - only update from localStorage to avoid API calls
+        const handleCartUpdate = () => {
+            console.log('Cart update event received, reloading from localStorage...');
+            const localCartData = loadCartFromLocalStorage();
+            if (localCartData.length > 0) {
+                setCartItems(localCartData);
+                fetchProductDetails(localCartData);
+            } else {
+                setCartItems([]);
+                setProducts({});
+            }
+        };
+
+        // Add event listener for user logout
+        const handleUserLogout = () => {
+            console.log('User logged out, clearing cart data...');
+            setCartItems([]);
+            setProducts({});
+            setError(null);
+        };
+
+        window.addEventListener('cartUpdated', handleCartUpdate);
+        window.addEventListener('userLoggedOut', handleUserLogout);
+
+        // Cleanup function to clear event listeners
+        return () => {
+            window.removeEventListener('cartUpdated', handleCartUpdate);
+            window.removeEventListener('userLoggedOut', handleUserLogout);
+        };
+    }, []); // Empty dependency array to avoid re-registering events
 
     const formatPrice = (price) => {
         if (typeof price === 'string') {
@@ -116,6 +232,50 @@ const Cart = () => {
         }, 0);
     };
 
+    // Debounced API update function - updates all items at once
+    const debouncedUpdateAPI = useCallback(() => {
+        // Clear existing timeout
+        if (debounceRef.current.updateAll) {
+            clearTimeout(debounceRef.current.updateAll);
+        }
+
+        // Set new timeout for batch update
+        debounceRef.current.updateAll = setTimeout(async () => {
+            try {
+                const token = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken');
+
+                if (!token || cartItems.length === 0) return;
+
+                // Prepare items array for batch update
+                const items = cartItems.map(item => ({
+                    productId: item.productId,
+                    quantity: item.quantity
+                }));
+
+                const response = await axios.put('http://localhost:8080/api/v1/user/cart/update', {
+                    items: items
+                }, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.data.statusCode === 200 && response.data.message === 'SUCCESS') {
+                    console.log('Successfully updated all cart items');
+                    // Clear all pending updates
+                    setPendingUpdates({});
+                } else {
+                    throw new Error(response.data.message || 'Failed to update quantities');
+                }
+            } catch (error) {
+                console.error('Error updating cart quantities via API:', error);
+                // You might want to show a toast notification here
+                // For now, we'll leave the local state as is
+            }
+        }, 1000); // 1 second delay
+    }, [cartItems]);
+
     const handleQuantityChange = async (cartItemId, productId, newQuantity) => {
         if (newQuantity === 0) {
             await removeFromCart(cartItemId);
@@ -126,49 +286,75 @@ const Cart = () => {
 
     const updateQuantity = async (cartItemId, quantity) => {
         try {
-            const token = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken');
-
             // Update local state immediately for better UX
-            setCartItems(prevItems =>
-                prevItems.map(item =>
-                    item.cartItemId === cartItemId
-                        ? { ...item, quantity: quantity }
-                        : item
-                )
+            const updatedItems = cartItems.map(item =>
+                item.cartItemId === cartItemId
+                    ? { ...item, quantity: quantity }
+                    : item
             );
 
-            // TODO: Implement actual API call when update cart API is available
-            // const response = await axios.put(`http://localhost:8080/api/v1/user/cart/${cartItemId}`, {
-            //     quantity: quantity
-            // }, {
-            //     headers: {
-            //         'Authorization': `Bearer ${token}`
-            //     }
-            // });
+            setCartItems(updatedItems);
+
+            // Save to localStorage immediately
+            saveCartToLocalStorage(updatedItems);
+
+            // Mark as pending update
+            setPendingUpdates(prev => ({
+                ...prev,
+                [cartItemId]: { quantity, timestamp: Date.now() }
+            }));
+
+            // Trigger debounced API call for batch update
+            debouncedUpdateAPI();
 
         } catch (error) {
             console.error('Error updating quantity:', error);
             alert('Có lỗi xảy ra khi cập nhật số lượng.');
-            // Revert the optimistic update
-            fetchCartItems();
         }
     };
 
     const removeFromCart = async (cartItemId) => {
         try {
-            const token = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken');
+            // Find the cart item to get productId
+            const cartItem = cartItems.find(item => item.cartItemId === cartItemId);
+            if (!cartItem) {
+                console.error('Cart item not found');
+                return;
+            }
 
             // Update local state immediately for better UX
-            setCartItems(prevItems =>
-                prevItems.filter(item => item.cartItemId !== cartItemId)
-            );
+            const updatedItems = cartItems.filter(item => item.cartItemId !== cartItemId);
+            setCartItems(updatedItems);
 
-            // TODO: Implement actual API call when remove from cart API is available
-            // const response = await axios.delete(`http://localhost:8080/api/v1/user/cart/${cartItemId}`, {
-            //     headers: {
-            //         'Authorization': `Bearer ${token}`
-            //     }
-            // });
+            // Save to localStorage immediately
+            saveCartToLocalStorage(updatedItems);
+
+            // Clear any pending debounced updates
+            if (debounceRef.current.updateAll) {
+                clearTimeout(debounceRef.current.updateAll);
+            }
+
+            // Call API to remove from server
+            const token = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken');
+
+            if (token) {
+                try {
+                    const response = await axios.delete(`http://localhost:8080/api/v1/user/cart/${cartItem.productId}`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+
+                    if (response.data.statusCode === 200 && response.data.message === 'SUCCESS') {
+                        console.log(`Successfully removed product ${cartItem.productId} from cart`);
+                    } else {
+                        console.warn('Unexpected response for cart removal:', response.data);
+                    }
+                } catch (apiError) {
+                    console.error('Error removing from cart via API:', apiError);
+                    // We keep the local change even if API fails
+                }
+            }
 
         } catch (error) {
             console.error('Error removing from cart:', error);
@@ -180,17 +366,38 @@ const Cart = () => {
 
     const clearCart = async () => {
         try {
-            const token = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken');
-
-            // Update local state immediately for better UX
+            // Update local state immediately
             setCartItems([]);
 
-            // TODO: Implement actual API call when clear cart API is available
-            // const response = await axios.delete(`http://localhost:8080/api/v1/user/cart/clear`, {
-            //     headers: {
-            //         'Authorization': `Bearer ${token}`
-            //     }
-            // });
+            // Clear localStorage
+            saveCartToLocalStorage([]);
+
+            // Clear all pending debounced updates
+            if (debounceRef.current.updateAll) {
+                clearTimeout(debounceRef.current.updateAll);
+            }
+            debounceRef.current = {};
+            setPendingUpdates({});
+
+            // Call API to clear cart on server
+            const token = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken');
+
+            if (token) {
+                try {
+                    const response = await axios.delete(`http://localhost:8080/api/v1/user/cart/clear`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+
+                    if (response.data.statusCode === 200 && response.data.message === 'SUCCESS') {
+                        console.log('Successfully cleared cart');
+                    }
+                } catch (apiError) {
+                    console.error('Error clearing cart via API:', apiError);
+                    // We keep the local change even if API fails
+                }
+            }
 
         } catch (error) {
             console.error('Error clearing cart:', error);
@@ -201,7 +408,11 @@ const Cart = () => {
     };
 
     const handleCheckout = () => {
-        alert('Chức năng thanh toán đang được phát triển!');
+        if (cartItems.length === 0) {
+            alert('Giỏ hàng trống. Vui lòng thêm sản phẩm trước khi thanh toán.');
+            return;
+        }
+        navigate('/order');
     };
 
     // Loading state
@@ -286,7 +497,7 @@ const Cart = () => {
                             <div className="p-6 border-b border-gray-200">
                                 <div className="flex justify-between items-center">
                                     <h2 className="text-2xl font-bold text-gray-900">
-                                        Giỏ hàng ({cartItems.reduce((total, item) => total + item.quantity, 0)} sản phẩm)
+                                        Giỏ hàng ({cartItems.length} sản phẩm)
                                     </h2>
                                     <button
                                         onClick={clearCart}
@@ -397,7 +608,7 @@ const Cart = () => {
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center">
                                     <span className="text-gray-600">Số lượng sản phẩm:</span>
-                                    <span className="font-medium text-gray-800">{cartItems.reduce((sum, item) => sum + item.quantity, 0)}</span>
+                                    <span className="font-medium text-gray-800">{cartItems.length}</span>
                                 </div>
                                 <div className="border-t border-gray-300 pt-4">
                                     <div className="flex justify-between items-center text-xl font-bold text-purple-800">

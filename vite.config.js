@@ -5,6 +5,9 @@ import tailwindcss from '@tailwindcss/vite'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(),
-    tailwindcss()
+    tailwindcss(),
   ],
+  define: {
+    global: 'window',   // ✅ thêm alias để sockjs-client không crash
+  }
 })

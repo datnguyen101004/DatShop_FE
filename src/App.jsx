@@ -9,6 +9,13 @@ import Products from './components/Products';
 import ProductDetail from './components/ProductDetail';
 import CreateProduct from './components/CreateProduct';
 import Cart from './components/Cart';
+import Order from './components/Order';
+import OrderHistory from './components/OrderHistory';
+import PaymentCallback from './components/PaymentCallback';
+import Profile from './components/Profile';
+import UserProfile from './components/UserProfile';
+import ChatPage from './components/ChatPage';
+
 import './App.css'
 
 function App() {
@@ -53,6 +60,12 @@ function App() {
             <Route path="/product/:id" element={<ProductDetail />} />
             <Route path="/create-product" element={<CreateProduct />} />
             <Route path="/cart" element={<Cart />} />
+            <Route path="/order" element={<Order />} />
+            <Route path="/order-history" element={<OrderHistory />} />
+            <Route path="/payment/callback" element={<PaymentCallback />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/profile/:userId" element={<UserProfile />} />
+            <Route path="/chat/:conversationId?" element={<ChatPage />} />
           </Routes>
         </div>
       </Router>

@@ -8,10 +8,37 @@ const ProductDetail = () => {
     const navigate = useNavigate();
     const { isAuthenticated, user } = useAuth();
     const [product, setProduct] = useState(null);
+    const [author, setAuthor] = useState(null);
+    const [authorLoading, setAuthorLoading] = useState(false);
+    const [showChat, setShowChat] = useState(false);
     const [quantity, setQuantity] = useState(1);
     const [selectedImage, setSelectedImage] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
+
+    // Fetch author information
+    const fetchAuthorInfo = async (authorId) => {
+        try {
+            setAuthorLoading(true);
+            const token = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken');
+
+            const response = await axios.get(`http://localhost:8080/api/v1/user/profile/${authorId}`, {
+                headers: {
+                    ...(token && { 'Authorization': `Bearer ${token}` })
+                }
+            });
+
+            if (response.data.statusCode === 200 && response.data.message === 'SUCCESS') {
+                setAuthor(response.data.data);
+            } else {
+                console.warn('Failed to fetch author info:', response.data.message);
+            }
+        } catch (error) {
+            console.error('Error fetching author info:', error);
+        } finally {
+            setAuthorLoading(false);
+        }
+    };
 
     useEffect(() => {
         const fetchProductDetail = async () => {
@@ -30,6 +57,12 @@ const ProductDetail = () => {
                 // Handle response based on API format
                 if (response.data.statusCode === 200 && response.data.message === 'SUCCESS') {
                     setProduct(response.data.data);
+
+                    // Fetch author info if authorId exists
+                    if (response.data.data.authorId) {
+                        fetchAuthorInfo(response.data.data.authorId);
+                    }
+
                     setError(null);
                 } else {
                     throw new Error(response.data.message || 'Không thể tải thông tin sản phẩm');
@@ -61,6 +94,47 @@ const ProductDetail = () => {
         }
     }, [id]);
 
+    // Helper function to get cart storage key - only for authenticated users
+    const getCartStorageKey = () => {
+        if (!user?.userId) return null; // Don't create cart_guest key
+        return `cart_${user.userId}`;
+    };
+
+    // Helper function to add product to localStorage cart - only for authenticated users
+    const addToLocalStorageCart = (product, quantity) => {
+        try {
+            const cartKey = getCartStorageKey();
+            if (!cartKey) return; // Don't save if user is not authenticated
+
+            const existingCart = JSON.parse(localStorage.getItem(cartKey) || '[]');
+
+            // Check if product already exists in cart
+            const existingItemIndex = existingCart.findIndex(item => item.productId === parseInt(product.id));
+
+            if (existingItemIndex >= 0) {
+                // Update quantity if product exists
+                existingCart[existingItemIndex].quantity += quantity;
+            } else {
+                // Add new item if product doesn't exist
+                const newItem = {
+                    cartItemId: `temp_${Date.now()}_${product.id}`, // Temporary ID
+                    cartId: user?.userId || 1,
+                    productId: parseInt(product.id),
+                    quantity: quantity
+                };
+                existingCart.push(newItem);
+            }
+
+            localStorage.setItem(cartKey, JSON.stringify(existingCart));
+            // Dispatch custom event for navbar to update
+            window.dispatchEvent(new CustomEvent('cartUpdated'));
+            return true;
+        } catch (error) {
+            console.error('Error saving to localStorage cart:', error);
+            return false;
+        }
+    };
+
     const handleAddToCart = async () => {
         if (!isAuthenticated()) {
             navigate('/login', {
@@ -71,6 +145,9 @@ const ProductDetail = () => {
 
         if (product) {
             try {
+                // Add to localStorage immediately for better UX
+                addToLocalStorageCart(product, quantity);
+
                 const token = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken');
 
                 const requestBody = {
@@ -87,6 +164,25 @@ const ProductDetail = () => {
 
                 if (response.data.statusCode === 200 && response.data.message === 'SUCCESS') {
                     alert(`Đã thêm ${quantity} ${product.name} vào giỏ hàng thành công!`);
+
+                    // Optionally update localStorage with server response data
+                    // This ensures we have the correct cartItemId from server
+                    if (response.data.data && response.data.data.cartItemId) {
+                        const cartKey = getCartStorageKey();
+                        const cart = JSON.parse(localStorage.getItem(cartKey) || '[]');
+                        const tempItemIndex = cart.findIndex(item =>
+                            item.productId === parseInt(product.id) &&
+                            item.cartItemId.toString().startsWith('temp_')
+                        );
+
+                        if (tempItemIndex >= 0) {
+                            // Replace temp ID with real ID from server
+                            cart[tempItemIndex].cartItemId = response.data.data.cartItemId;
+                            localStorage.setItem(cartKey, JSON.stringify(cart));
+                            // Dispatch custom event for navbar to update
+                            window.dispatchEvent(new CustomEvent('cartUpdated'));
+                        }
+                    }
                 } else {
                     throw new Error(response.data.message || 'Không thể thêm sản phẩm vào giỏ hàng');
                 }
@@ -96,7 +192,8 @@ const ProductDetail = () => {
                     alert('Vui lòng đăng nhập lại để thêm sản phẩm vào giỏ hàng.');
                     navigate('/login');
                 } else {
-                    alert(error.response?.data?.message || 'Có lỗi xảy ra khi thêm sản phẩm vào giỏ hàng. Vui lòng thử lại!');
+                    // Even if API fails, product is still in localStorage
+                    alert(`Sản phẩm đã được thêm vào giỏ hàng tạm thời. ${error.response?.data?.message || 'Lỗi đồng bộ với server.'}`);
                 }
             }
         }
@@ -110,8 +207,9 @@ const ProductDetail = () => {
             return;
         }
 
+        // Add to cart first, then navigate to order page
         await handleAddToCart();
-        navigate('/cart');
+        navigate('/order');
     };
 
     const formatPrice = (price) => {
@@ -246,10 +344,55 @@ const ProductDetail = () => {
 
                             {/* Author Info */}
                             {product.authorId && (
-                                <div className="mb-4">
-                                    <span className="text-gray-600">
-                                        👤 Được bán bởi: <span className="font-semibold">User #{product.authorId}</span>
-                                    </span>
+                                <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
+                                                {authorLoading ? (
+                                                    <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
+                                                ) : (
+                                                    author?.email?.charAt(0)?.toUpperCase() || '?'
+                                                )}
+                                            </div>
+                                            <div>
+                                                <div className="text-sm text-gray-600 mb-1">Được bán bởi</div>
+                                                {authorLoading ? (
+                                                    <div className="animate-pulse">
+                                                        <div className="h-4 bg-gray-300 rounded w-24 mb-1"></div>
+                                                        <div className="h-3 bg-gray-200 rounded w-16"></div>
+                                                    </div>
+                                                ) : author ? (
+                                                    <div>
+                                                        <div className="font-semibold text-gray-900">{author.email}</div>
+                                                        <div className="text-xs text-gray-500">
+                                                            {author.role === 'ADMIN' ? '👑 Quản trị viên' : '👤 Người bán'}
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="font-semibold text-gray-900">User #{product.authorId}</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {author && (
+                                            <div className="flex gap-2">
+                                                <Link
+                                                    to={`/profile/${product.authorId}`}
+                                                    className="bg-white hover:bg-blue-50 text-blue-600 border border-blue-200 hover:border-blue-300 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105"
+                                                >
+                                                    👤 Xem hồ sơ
+                                                </Link>
+                                                {/* Only show chat button if not own product */}
+                                                {user?.userId !== product.authorId && (
+                                                    <button
+                                                        onClick={() => setShowChat(true)}
+                                                        className="bg-green-500 hover:bg-green-600 text-white border border-green-500 hover:border-green-600 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105"
+                                                    >
+                                                        💬 Nhắn tin
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             )}
 
@@ -352,6 +495,13 @@ const ProductDetail = () => {
                     )}
                 </div>
             </div>
+
+            {/* Chat Component */}
+            <UserChat
+                isOpen={showChat}
+                onClose={() => setShowChat(false)}
+                targetUser={author}
+            />
         </div>
     );
 };

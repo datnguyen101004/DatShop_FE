@@ -168,7 +168,7 @@ const Products = () => {
                             <h1 className="text-4xl font-bold text-gray-800 mb-4">Tất cả sản phẩm</h1>
                             <p className="text-xl text-gray-600">Khám phá bộ sưu tập đa dạng của chúng tôi</p>
                         </div>
-                        {isAuthenticated() && (
+                        {isAuthenticated() && user?.role === 'admin' && (
                             <div className="mt-4 sm:mt-0">
                                 <Link
                                     to="/create-product"
@@ -294,6 +294,18 @@ const Products = () => {
                                                 {product.stockQuantity > 0 ? `Còn ${product.stockQuantity}` : 'Hết hàng'}
                                             </span>
                                         </div>
+
+                                        {/* Author Info */}
+                                        {product.authorId && (
+                                            <div className="mb-3">
+                                                <Link
+                                                    to={`/profile/${product.authorId}`}
+                                                    className="text-xs text-gray-500 hover:text-blue-600 transition-colors inline-flex items-center gap-1"
+                                                >
+                                                    👤 Người bán: #{product.authorId}
+                                                </Link>
+                                            </div>
+                                        )}
 
                                         {/* Description */}
                                         {product.description && (
