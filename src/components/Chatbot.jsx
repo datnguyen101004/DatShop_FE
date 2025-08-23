@@ -180,8 +180,8 @@ const Chatbot = () => {
                                     )}
                                     <div
                                         className={`p-3 rounded-lg ${message.isBot
-                                                ? 'bg-white text-gray-800 shadow-sm border border-gray-100 rounded-bl-sm'
-                                                : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-br-sm'
+                                            ? 'bg-white text-gray-800 shadow-sm border border-gray-100 rounded-bl-sm'
+                                            : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-br-sm'
                                             }`}
                                     >
                                         <p className="text-sm leading-relaxed">{message.text}</p>

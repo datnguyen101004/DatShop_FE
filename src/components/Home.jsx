@@ -1,67 +1,86 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import axios from 'axios';
 
 const Home = () => {
     const [email, setEmail] = useState('');
     const location = useLocation();
     const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
 
-    // Sample data - trong thực tế sẽ lấy từ API
-    const categories = [
-        { id: 1, name: 'Điện tử', image: '📱', color: 'from-blue-400 to-blue-600', bgColor: 'bg-blue-50' },
-        { id: 2, name: 'Thời trang', image: '👕', color: 'from-pink-400 to-pink-600', bgColor: 'bg-pink-50' },
-        { id: 3, name: 'Nhà cửa', image: '🏠', color: 'from-green-400 to-green-600', bgColor: 'bg-green-50' },
-        { id: 4, name: 'Sách', image: '📚', color: 'from-yellow-400 to-yellow-600', bgColor: 'bg-yellow-50' },
-        { id: 5, name: 'Thể thao', image: '⚽', color: 'from-orange-400 to-orange-600', bgColor: 'bg-orange-50' },
-        { id: 6, name: 'Làm đẹp', image: '💄', color: 'from-purple-400 to-purple-600', bgColor: 'bg-purple-50' },
-    ];
+    // API data states
+    const [categories, setCategories] = useState([]);
+    const [featuredProducts, setFeaturedProducts] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
-    const featuredProducts = [
-        {
-            id: 1,
-            name: 'iPhone 15 Pro Max',
-            price: '29.990.000',
-            originalPrice: '32.990.000',
-            image: '📱',
-            rating: 4.8,
-            reviews: 1234,
-            discount: 9,
-            badge: 'Hot'
-        },
-        {
-            id: 2,
-            name: 'MacBook Air M3',
-            price: '28.999.000',
-            originalPrice: '31.999.000',
-            image: '💻',
-            rating: 4.9,
-            reviews: 856,
-            discount: 9,
-            badge: 'New'
-        },
-        {
-            id: 3,
-            name: 'AirPods Pro 2',
-            price: '5.999.000',
-            originalPrice: '6.999.000',
-            image: '🎧',
-            rating: 4.7,
-            reviews: 2341,
-            discount: 14,
-            badge: 'Sale'
-        },
-        {
-            id: 4,
-            name: 'Samsung Galaxy S24',
-            price: '22.990.000',
-            originalPrice: '24.990.000',
-            image: '📱',
-            rating: 4.6,
-            reviews: 987,
-            discount: 8,
-            badge: 'Popular'
-        },
-    ];
+    // Category mapping cho UI display
+    const getCategoryDisplay = (category) => {
+        const categoryMap = {
+            'phone': { image: '📱', color: 'from-blue-400 to-blue-600', bgColor: 'bg-blue-50' },
+            'laptop': { image: '�', color: 'from-green-400 to-green-600', bgColor: 'bg-green-50' },
+            'string': { image: '📦', color: 'from-gray-400 to-gray-600', bgColor: 'bg-gray-50' },
+            'default': { image: '�️', color: 'from-purple-400 to-purple-600', bgColor: 'bg-purple-50' }
+        };
+        return categoryMap[category] || categoryMap['default'];
+    };
+
+    // Fetch home data from API
+    const fetchHomeData = async () => {
+        try {
+            setLoading(true);
+            const response = await axios.get('http://localhost:8080/api/v1/home/');
+
+            if (response.data.statusCode === 200) {
+                const { categories: rawCategories, products } = response.data.data;
+
+                // Transform categories for display
+                const transformedCategories = rawCategories.map((cat, index) => ({
+                    id: index + 1,
+                    name: cat.charAt(0).toUpperCase() + cat.slice(1), // Capitalize first letter
+                    originalName: cat,
+                    ...getCategoryDisplay(cat)
+                }));
+
+                // Transform products for display
+                const transformedProducts = products.map(product => ({
+                    id: product.id,
+                    name: product.name,
+                    price: product.price.toLocaleString('vi-VN'),
+                    originalPrice: Math.round(product.price * 1.1).toLocaleString('vi-VN'), // Mock original price
+                    image: getCategoryDisplay(product.category).image,
+                    rating: 4.5, // Mock rating
+                    reviews: Math.floor(Math.random() * 1000) + 100, // Mock reviews
+                    discount: Math.floor(Math.random() * 20) + 5, // Mock discount
+                    badge: product.stockQuantity > 5 ? 'Available' : 'Limited',
+                    description: product.description,
+                    category: product.category,
+                    stockQuantity: product.stockQuantity
+                }));
+
+                setCategories(transformedCategories);
+                setFeaturedProducts(transformedProducts);
+                setError(null);
+            } else {
+                throw new Error('Failed to fetch home data');
+            }
+        } catch (err) {
+            console.error('Error fetching home data:', err);
+            setError('Không thể tải dữ liệu trang chủ');
+
+            // Set fallback data
+            setCategories([
+                { id: 1, name: 'Sản phẩm', image: '🛍️', color: 'from-purple-400 to-purple-600', bgColor: 'bg-purple-50' }
+            ]);
+            setFeaturedProducts([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Load data on component mount
+    useEffect(() => {
+        fetchHomeData();
+    }, []);
 
     const features = [
         {
@@ -88,7 +107,6 @@ const Home = () => {
 
     const handleSubscribe = (e) => {
         e.preventDefault();
-        alert('Cảm ơn bạn đã đăng ký nhận tin!');
         setEmail('');
     };
 
@@ -135,6 +153,32 @@ const Home = () => {
                                 ✕
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Loading State */}
+            {loading && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-8 text-center">
+                        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                        <p className="text-lg text-gray-600">Đang tải dữ liệu...</p>
+                    </div>
+                </div>
+            )}
+
+            {/* Error State */}
+            {error && (
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mx-4 mt-4">
+                    <div className="flex items-center">
+                        <span className="text-xl mr-2">⚠️</span>
+                        <span>{error}</span>
+                        <button
+                            onClick={fetchHomeData}
+                            className="ml-auto bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700"
+                        >
+                            Thử lại
+                        </button>
                     </div>
                 </div>
             )}

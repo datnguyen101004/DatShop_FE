@@ -10,7 +10,6 @@ const ProductDetail = () => {
     const [product, setProduct] = useState(null);
     const [author, setAuthor] = useState(null);
     const [authorLoading, setAuthorLoading] = useState(false);
-    const [showChat, setShowChat] = useState(false);
     const [quantity, setQuantity] = useState(1);
     const [selectedImage, setSelectedImage] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
@@ -37,6 +36,46 @@ const ProductDetail = () => {
             console.error('Error fetching author info:', error);
         } finally {
             setAuthorLoading(false);
+        }
+    };
+
+    // Create chat room and navigate to chat page
+    const startChat = async () => {
+        try {
+            const token = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken');
+            if (!token) {
+                navigate('/login');
+                return;
+            }
+
+            // Send receiverId as Long in request body
+            const receiverId = parseInt(product.authorId);
+            console.log('Creating chat room with receiverId:', receiverId);
+
+            const response = await axios.post('http://localhost:8080/api/v1/chat/rooms/create', receiverId, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.data && response.data.statusCode === 200) {
+                // Successfully created or found chat room
+                console.log('Chat room created/found:', response.data);
+                const conversationData = response.data.data;
+                console.log('Conversation ID:', conversationData.conversationId);
+
+                // Navigate to chat page with conversation ID
+                navigate(`/chat/${conversationData.conversationId}`);
+            } else {
+                throw new Error(response.data?.message || 'Không thể tạo phòng chat');
+            }
+        } catch (error) {
+            console.error('Error creating chat room:', error);
+            if (error.response?.status === 401) {
+
+                navigate('/login');
+            }
         }
     };
 
@@ -163,8 +202,6 @@ const ProductDetail = () => {
                 });
 
                 if (response.data.statusCode === 200 && response.data.message === 'SUCCESS') {
-                    alert(`Đã thêm ${quantity} ${product.name} vào giỏ hàng thành công!`);
-
                     // Optionally update localStorage with server response data
                     // This ensures we have the correct cartItemId from server
                     if (response.data.data && response.data.data.cartItemId) {
@@ -189,11 +226,9 @@ const ProductDetail = () => {
             } catch (error) {
                 console.error('Error adding to cart:', error);
                 if (error.response?.status === 401) {
-                    alert('Vui lòng đăng nhập lại để thêm sản phẩm vào giỏ hàng.');
                     navigate('/login');
                 } else {
-                    // Even if API fails, product is still in localStorage
-                    alert(`Sản phẩm đã được thêm vào giỏ hàng tạm thời. ${error.response?.data?.message || 'Lỗi đồng bộ với server.'}`);
+                    console.warn('Even if API fails, product is still in localStorage');
                 }
             }
         }
@@ -384,7 +419,7 @@ const ProductDetail = () => {
                                                 {/* Only show chat button if not own product */}
                                                 {user?.userId !== product.authorId && (
                                                     <button
-                                                        onClick={() => setShowChat(true)}
+                                                        onClick={startChat}
                                                         className="bg-green-500 hover:bg-green-600 text-white border border-green-500 hover:border-green-600 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105"
                                                     >
                                                         💬 Nhắn tin
@@ -495,13 +530,6 @@ const ProductDetail = () => {
                     )}
                 </div>
             </div>
-
-            {/* Chat Component */}
-            <UserChat
-                isOpen={showChat}
-                onClose={() => setShowChat(false)}
-                targetUser={author}
-            />
         </div>
     );
 };

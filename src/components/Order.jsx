@@ -189,11 +189,9 @@ const Order = () => {
 
                 if (orderData.paymentMethod === 'BANK_TRANSFER' && orderData.paymentUrl) {
                     // Redirect to VNPay payment page
-                    // alert(`Đơn hàng #${orderData.orderId} đã được tạo thành công! Đang chuyển đến trang thanh toán...`);
                     window.location.href = orderData.paymentUrl;
                 } else {
                     // COD payment success
-                    //alert(`Đơn hàng #${orderData.orderId} đã được tạo thành công! Tổng tiền: ${formatPrice(orderData.totalPrice)} VNĐ`);
                     navigate('/products');
                 }
             } else {
@@ -229,13 +227,6 @@ const Order = () => {
                 ...prev,
                 paymentMethod: location.state.paymentMethod
             }));
-
-            // // Show notification about payment method being pre-selected
-            // if (location.state.paymentMethod === 'BANK_TRANSFER') {
-            //     setTimeout(() => {
-            //         alert('💳 Phương thức thanh toán "Chuyển khoản ngân hàng" đã được chọn sẵn để hoàn tất thanh toán đơn hàng.');
-            //     }, 500);
-            // }
         }
     }, [location.state]);
 

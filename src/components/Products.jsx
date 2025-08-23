@@ -35,7 +35,7 @@ const Products = () => {
 
                 const response = await axios.get('http://localhost:8080/api/v1/user/product/all', {
                     headers: {
-                        ...(token && { 'Authorization': `Bearer ${token}` })
+                        Authorization: `Bearer ${token}`
                     }
                 });
 

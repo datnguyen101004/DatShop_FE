@@ -120,9 +120,6 @@ const Login = () => {
                     token: userData.accessToken,
                     loginTime: new Date().toISOString()
                 });
-
-                alert(`Đăng nhập thành công! Chào mừng ${userData.name}!`);
-
                 // Redirect to intended page or home
                 const from = location.state?.from?.pathname || '/';
                 navigate(from, { replace: true });
@@ -134,8 +131,6 @@ const Login = () => {
 
                 if (result.success) {
                     console.log('Local Login successful:', result.user);
-                    alert('Đăng nhập thành công (chế độ demo)!');
-
                     const from = location.state?.from?.pathname || '/';
                     navigate(from, { replace: true });
                 } else {

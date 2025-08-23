@@ -17,7 +17,6 @@ const CreateProduct = () => {
         } else if (user?.role !== 'admin') {
             // Redirect non-admin users to home page
             navigate('/', { replace: true });
-            alert('Bạn không có quyền truy cập trang này!');
         }
     }, [isAuthenticated, user, navigate]);
 
@@ -78,7 +77,6 @@ const CreateProduct = () => {
             // Handle response based on API format
             if (response.data.statusCode === 200 && response.data.message === 'SUCCESS') {
                 console.log('Product created successfully:', response.data.data);
-                alert(`Sản phẩm "${response.data.data.name}" đã được tạo thành công!`);
                 navigate('/products');
             } else {
                 throw new Error(response.data.message || 'Tạo sản phẩm không thành công');
@@ -89,15 +87,12 @@ const CreateProduct = () => {
             // Handle different error types
             if (error.response) {
                 if (error.response.status === 401) {
-                    alert('Vui lòng đăng nhập để tạo sản phẩm.');
                     navigate('/login');
                 } else if (error.response.status === 403) {
-                    alert('Bạn không có quyền tạo sản phẩm.');
-                } else {
-                    alert(`Có lỗi xảy ra: ${error.response.data?.message || error.message}`);
+                    console.warn('Bạn không có quyền thực hiện hành động này.');
                 }
             } else {
-                alert(`Có lỗi xảy ra khi tạo sản phẩm: ${error.message}`);
+                console.warn('Không thể kết nối tới server. Vui lòng kiểm tra kết nối mạng.');
             }
         } finally {
             setIsLoading(false);
