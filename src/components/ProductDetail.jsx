@@ -135,7 +135,7 @@ const ProductDetail = () => {
 
     // Helper function to get cart storage key - only for authenticated users
     const getCartStorageKey = () => {
-        if (!user?.userId) return null; // Don't create cart_guest key
+        if (!user?.userId) return null;
         return `cart_${user.userId}`;
     };
 
@@ -204,6 +204,7 @@ const ProductDetail = () => {
                 if (response.data.statusCode === 200 && response.data.message === 'SUCCESS') {
                     // Optionally update localStorage with server response data
                     // This ensures we have the correct cartItemId from server
+                    alert("Thêm vào giỏ hàng thành công!");
                     if (response.data.data && response.data.data.cartItemId) {
                         const cartKey = getCartStorageKey();
                         const cart = JSON.parse(localStorage.getItem(cartKey) || '[]');
