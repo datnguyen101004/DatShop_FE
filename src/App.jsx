@@ -16,6 +16,8 @@ import Profile from './components/Profile';
 import UserProfile from './components/UserProfile';
 import ChatPage from './components/ChatPage';
 import Chatbot from './components/Chatbot';
+import SearchImage from './components/SearchImage';
+import Shop from './components/Shop';
 
 import './App.css'
 
@@ -67,6 +69,8 @@ function App() {
             <Route path="/profile" element={<Profile />} />
             <Route path="/profile/:userId" element={<UserProfile />} />
             <Route path="/chat/:conversationId?" element={<ChatPage />} />
+            <Route path="/search-image" element={<SearchImage />} />
+            <Route path="/shop" element={<Shop />} />
           </Routes>
 
           {/* Chatbot Popup */}
